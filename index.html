@@ -493,6 +493,39 @@
   }
   .toast.show { transform: translateY(0); opacity: 1; }
 
+
+  /* DEBUG PANEL */
+  .debug-panel {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #0a0a0a;
+    border-top: 2px solid var(--amber);
+    padding: 1rem 2rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    color: #88d4a8;
+    max-height: 40vh;
+    overflow-y: auto;
+    z-index: 300;
+  }
+  .debug-panel.open { display: block; }
+  .debug-line { margin-bottom: 0.25rem; line-height: 1.5; }
+  .debug-line.err { color: var(--red); }
+  .debug-line.ok { color: #88d4a8; }
+  .debug-line.info { color: var(--amber); }
+  .debug-toggle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--amber);
+    background: transparent;
+    color: var(--amber);
+    cursor: pointer;
+  }
+  .debug-toggle:hover { background: var(--amber); color: var(--ink); }
+
   @media (max-width: 600px) {
     .masthead { padding: 1rem; }
     .main-content { padding: 1rem; }
@@ -516,6 +549,7 @@
     </div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--muted)" id="lastRefresh">—</div>
     <button class="export-btn" onclick="exportJSON()">⬇ Export JSON</button>
+    <button class="debug-toggle" onclick="toggleDebug()">⚙ Debug</button>
   </div>
 </header>
 
@@ -605,6 +639,19 @@
       <div id="modalApiData">Loading…</div>
     </div>
   </div>
+</div>
+
+
+<div class="debug-panel" id="debugPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+    <span style="color:var(--amber);letter-spacing:0.15em">API DEBUG LOG</span>
+    <div style="display:flex;gap:0.5rem">
+      <button onclick="retryApi()" style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;padding:0.2rem 0.6rem;background:transparent;border:1px solid var(--amber);color:var(--amber);cursor:pointer">↺ Retry</button>
+      <button onclick="clearDebug()" style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;padding:0.2rem 0.6rem;background:transparent;border:1px solid var(--muted);color:var(--muted);cursor:pointer">Clear</button>
+      <button onclick="toggleDebug()" style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;padding:0.2rem 0.6rem;background:transparent;border:1px solid var(--muted);color:var(--muted);cursor:pointer">✕</button>
+    </div>
+  </div>
+  <div id="debugLog"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1034,13 +1081,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 // =============================================
 async function fetchNorfolkCatalog() {
   try {
-    // Socrata catalog API
-    const res = await fetch(
-      `${NORFOLK_API_BASE}/api/catalog/v1?limit=100&domains=data.norfolk.gov`,
-      { headers: { 'X-App-Token': APP_TOKEN } }
-    );
-    if (!res.ok) throw new Error(res.status);
+    const catalogUrl = `${NORFOLK_API_BASE}/api/catalog/v1?limit=100&domains=data.norfolk.gov`;
+    dbg(`GET ${catalogUrl}`, 'info');
+    dbg(`Headers: X-App-Token: ${APP_TOKEN.substring(0,8)}…`, 'info');
+    const res = await fetch(catalogUrl, { headers: { 'X-App-Token': APP_TOKEN } });
+    dbg(`Response status: ${res.status} ${res.statusText}`, res.ok ? 'ok' : 'err');
+    if (!res.ok) {
+      const errText = await res.text();
+      dbg(`Error body: ${errText.substring(0, 200)}`, 'err');
+      throw new Error(res.status);
+    }
     const json = await res.json();
+    dbg(`Catalog OK — resultSetSize: ${json.resultSetSize}, results: ${json.results?.length}`, 'ok');
 
     apiLive = true;
     document.getElementById('apiDot').classList.add('live');
@@ -1073,6 +1125,8 @@ async function fetchNorfolkCatalog() {
     return datasets;
 
   } catch(err) {
+    dbg(`FETCH FAILED: ${err.message} — likely CORS or network block`, 'err');
+    dbg(`Check: is data.norfolk.gov returning CORS headers? Try opening the URL directly in browser.`, 'err');
     document.getElementById('apiDot').classList.add('error');
     document.getElementById('apiStatusText').textContent = `API error: ${err.message}`;
     document.getElementById('scoreTime').textContent = 'ERR';
@@ -1174,6 +1228,36 @@ function showJsonModal(jsonStr) {
        COPY TO CLIPBOARD
      </button>`;
   document.getElementById('modalOverlay').classList.add('open');
+}
+
+// =============================================
+// DEBUG
+// =============================================
+function toggleDebug() {
+  document.getElementById('debugPanel').classList.toggle('open');
+}
+
+function clearDebug() {
+  document.getElementById('debugLog').innerHTML = '';
+}
+
+function dbg(msg, type='info') {
+  const log = document.getElementById('debugLog');
+  const ts = new Date().toISOString().split('T')[1].split('.')[0];
+  const div = document.createElement('div');
+  div.className = `debug-line ${type}`;
+  div.textContent = `[${ts}] ${msg}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function retryApi() {
+  dbg('--- Manual retry ---', 'info');
+  apiData = {};
+  apiLive = false;
+  document.getElementById('apiDot').className = 'api-dot';
+  document.getElementById('apiStatusText').textContent = 'Retrying…';
+  await fetchNorfolkCatalog();
 }
 
 // =============================================
