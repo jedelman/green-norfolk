@@ -888,8 +888,8 @@ const GIP_METRICS = [
 let apiData = {};
 let apiLive = false;
 let activeFilter = 'all';
-const NORFOLK_API_BASE = 'https://data.norfolk.gov/api/explore/v2.1';
-const API_KEY = '45r6rxaa24u5z8ek4glwvqbks';
+const NORFOLK_API_BASE = 'https://data.norfolk.gov';
+const APP_TOKEN = '45r6rxaa24u5z8ek4glwvqbks'; // Socrata app token
 
 // =============================================
 // RENDER
@@ -1034,32 +1034,36 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 // =============================================
 async function fetchNorfolkCatalog() {
   try {
+    // Socrata catalog API
     const res = await fetch(
-      `${NORFOLK_API_BASE}/catalog/datasets?limit=100&apikey=${API_KEY}`
+      `${NORFOLK_API_BASE}/api/catalog/v1?limit=100&domains=data.norfolk.gov`,
+      { headers: { 'X-App-Token': APP_TOKEN } }
     );
     if (!res.ok) throw new Error(res.status);
     const json = await res.json();
 
     apiLive = true;
     document.getElementById('apiDot').classList.add('live');
-    document.getElementById('apiStatusText').textContent = `Connected · ${json.total_count || '?'} datasets`;
+    const count = json.resultSetSize || json.results?.length || '?';
+    document.getElementById('apiStatusText').textContent = `Connected · ${count} datasets`;
 
     const now = new Date().toLocaleTimeString();
     document.getElementById('scoreTime').textContent = now;
     document.getElementById('lastRefresh').textContent = `Last refresh: ${now}`;
 
-    // Try to match datasets to metrics
-    const datasets = json.datasets || [];
+    // Socrata catalog returns results[].resource.name, .id (4x4), .description
+    const datasets = json.results || [];
     for (const m of GIP_METRICS) {
       for (const hint of m.datasetHints) {
         const match = datasets.find(d => {
-          const title = (d.dataset?.metas?.default?.title || '').toLowerCase();
-          const desc = (d.dataset?.metas?.default?.description || '').toLowerCase();
-          return title.includes(hint.toLowerCase()) || desc.includes(hint.toLowerCase());
+          const name = (d.resource?.name || '').toLowerCase();
+          const desc = (d.resource?.description || '').toLowerCase();
+          return name.includes(hint.toLowerCase()) || desc.includes(hint.toLowerCase());
         });
         if (match) {
-          const dsId = match.dataset?.dataset_id;
-          await fetchDataset(m.id, dsId, match.dataset?.metas?.default?.title);
+          const uid = match.resource?.id; // 4x4 like "fahm-yuh4"
+          const title = match.resource?.name;
+          await fetchDataset(m.id, uid, title);
           break;
         }
       }
@@ -1076,20 +1080,28 @@ async function fetchNorfolkCatalog() {
   }
 }
 
-async function fetchDataset(metricId, datasetId, title) {
-  if (!datasetId) return;
+async function fetchDataset(metricId, uid, title) {
+  if (!uid) return;
   try {
+    // Socrata data endpoint: /resource/{4x4}.json
     const res = await fetch(
-      `${NORFOLK_API_BASE}/catalog/datasets/${datasetId}/records?limit=1&apikey=${API_KEY}`
+      `${NORFOLK_API_BASE}/resource/${uid}.json?$limit=1`,
+      { headers: { 'X-App-Token': APP_TOKEN } }
     );
-    const json = await res.json();
-    const count = json.total_count;
+    const rows = await res.json();
+    // Get row count from header
+    const countRes = await fetch(
+      `${NORFOLK_API_BASE}/resource/${uid}.json?$select=count(*)`,
+      { headers: { 'X-App-Token': APP_TOKEN } }
+    );
+    const countJson = await countRes.json();
+    const count = countJson[0]?.count || '?';
     apiData[metricId] = {
       fetched: true,
       summary: `${title} · ${count} records`,
-      datasetId,
+      datasetId: uid,
       count,
-      raw: json.results?.[0]?.record?.fields || {}
+      raw: rows[0] || {}
     };
   } catch(e) {
     // silently fail per-dataset
