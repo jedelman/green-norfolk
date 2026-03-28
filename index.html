@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Norfolk GIP Compliance Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0d0d0d;
+    --paper: #f2ede4;
+    --red: #c8241a;
+    --amber: #d4821a;
+    --green: #2a7a3b;
+    --muted: #8a8278;
+    --rule: #2a2520;
+    --card-bg: #1a1714;
+    --card-border: #2e2a26;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* MASTHEAD */
+  .masthead {
+    border-bottom: 3px solid var(--red);
+    padding: 1.5rem 2rem 1rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .masthead-left {}
+
+  .site-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--red);
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  .site-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    letter-spacing: 0.03em;
+    line-height: 0.9;
+    color: var(--paper);
+  }
+
+  .site-subtitle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+
+  .masthead-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+  }
+
+  .api-status {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .api-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: pulse 2s infinite;
+  }
+  .api-dot.live { background: var(--green); }
+  .api-dot.error { background: var(--red); animation: none; }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .export-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--paper);
+    background: transparent;
+    color: var(--paper);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .export-btn:hover { background: var(--paper); color: var(--ink); }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    background: var(--red);
+    padding: 0.55rem 2rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  /* CONTROLS */
+  .controls {
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .controls-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+  }
+
+  .filter-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--card-border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--paper);
+    color: var(--paper);
+  }
+  .filter-btn.active.critical { border-color: var(--red); color: var(--red); }
+  .filter-btn.active.watch { border-color: var(--amber); color: var(--amber); }
+  .filter-btn.active.ok { border-color: var(--green); color: var(--green); }
+
+  /* SCORECARD ROW */
+  .scorecard-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .score-cell {
+    padding: 1.2rem 1.5rem;
+    border-right: 1px solid var(--card-border);
+  }
+  .score-cell:last-child { border-right: none; }
+
+  .score-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+
+  .score-number {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    line-height: 1;
+  }
+
+  .score-number.red { color: var(--red); }
+  .score-number.amber { color: var(--amber); }
+  .score-number.green { color: var(--green); }
+
+  .score-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+
+  /* MAIN GRID */
+  .main-content {
+    padding: 1.5rem 2rem;
+  }
+
+  .section-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1px;
+    background: var(--card-border);
+    margin-bottom: 2rem;
+  }
+
+  .metric-card {
+    background: var(--card-bg);
+    padding: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+  .metric-card:hover { background: #211e1b; }
+
+  .metric-card.hidden { display: none; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .card-category {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .status-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .status-pill.critical { color: var(--red); }
+  .status-pill.watch { color: var(--amber); }
+  .status-pill.ok { color: var(--green); }
+  .status-pill.unknown { color: var(--muted); }
+
+  .card-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--paper);
+  }
+
+  /* PROGRESS BAR */
+  .progress-section { display: flex; flex-direction: column; gap: 0.4rem; }
+
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+
+  .progress-bar-track {
+    height: 4px;
+    background: var(--card-border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    transition: width 0.6s ease;
+  }
+  .progress-bar-fill.red { background: var(--red); }
+  .progress-bar-fill.amber { background: var(--amber); }
+  .progress-bar-fill.green { background: var(--green); }
+  .progress-bar-fill.muted { background: var(--muted); }
+
+  /* Benchmark line */
+  .progress-bar-track .benchmark {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--paper);
+    opacity: 0.3;
+  }
+
+  .card-note {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 300;
+    font-style: italic;
+    color: var(--muted);
+    line-height: 1.5;
+    border-left: 2px solid var(--card-border);
+    padding-left: 0.7rem;
+  }
+
+  /* DATA FETCH ROW */
+  .data-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+  }
+
+  .data-key { color: var(--muted); }
+  .data-val { color: var(--paper); }
+  .data-val.loading { color: var(--amber); animation: blink 1s infinite; }
+  .data-val.error-val { color: var(--red); }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    max-width: 640px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 2rem;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+  }
+
+  .modal-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    line-height: 1.1;
+    color: var(--paper);
+  }
+
+  .modal-close {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    background: transparent;
+    border: 1px solid var(--card-border);
+    color: var(--muted);
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+  }
+  .modal-close:hover { color: var(--paper); border-color: var(--paper); }
+
+  .modal-section { margin-bottom: 1.2rem; }
+  .modal-section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .modal-section-body {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: #c8c0b4;
+  }
+
+  .modal-actions-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .modal-actions-list li {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: #c8c0b4;
+    padding-left: 1rem;
+    position: relative;
+    line-height: 1.5;
+  }
+  .modal-actions-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--red);
+  }
+
+  /* DATA SOURCE PANEL */
+  .data-panel {
+    background: #111;
+    border: 1px solid var(--card-border);
+    padding: 1rem;
+    margin-top: 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+  .data-panel-title {
+    color: var(--paper);
+    margin-bottom: 0.6rem;
+    letter-spacing: 0.1em;
+  }
+  .data-entry { margin-bottom: 0.3rem; }
+  .data-entry .dk { color: var(--muted); }
+  .data-entry .dv { color: #88d4a8; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--card-border);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .footer-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* LOADING SPINNER */
+  .spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 1px solid var(--muted);
+    border-top-color: var(--paper);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem; right: 1.5rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.7rem 1.2rem;
+    letter-spacing: 0.05em;
+    transform: translateY(4rem);
+    opacity: 0;
+    transition: all 0.25s;
+    z-index: 200;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  @media (max-width: 600px) {
+    .masthead { padding: 1rem; }
+    .main-content { padding: 1rem; }
+    .controls { padding: 0.8rem 1rem; }
+    .scorecard-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-left">
+    <div class="site-label">Accountability Report — data.norfolk.gov</div>
+    <div class="site-title">Norfolk GIP<br>Compliance Tracker</div>
+    <div class="site-subtitle">Green Infrastructure Plan 2018 · Active monitoring · For activist use</div>
+  </div>
+  <div class="masthead-right">
+    <div class="api-status">
+      <div class="api-dot" id="apiDot"></div>
+      <span id="apiStatusText">Connecting to data.norfolk.gov…</span>
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--muted)" id="lastRefresh">—</div>
+    <button class="export-btn" onclick="exportJSON()">⬇ Export JSON</button>
+  </div>
+</header>
+
+<div class="alert-banner" id="alertBanner">
+  <span>⚠ CRITICAL: Tree canopy at ~25.8% — 8 yrs behind 30% target</span>
+  <span>⚠ WATCH: Wetland buffer programs underfunded</span>
+  <span>⚠ WATCH: Annual tree planting rate unknown vs 5,200/yr benchmark</span>
+</div>
+
+<div class="controls">
+  <span class="controls-label">Filter:</span>
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all',this)">All</button>
+  <button class="filter-btn" data-filter="critical" onclick="setFilter('critical',this)">Critical</button>
+  <button class="filter-btn" data-filter="watch" onclick="setFilter('watch',this)">Watch</button>
+  <button class="filter-btn" data-filter="ok" onclick="setFilter('ok',this)">On Track</button>
+  <button class="filter-btn" data-filter="unknown" onclick="setFilter('unknown',this)">Data Gap</button>
+</div>
+
+<div class="scorecard-row">
+  <div class="score-cell">
+    <div class="score-label">Overall Compliance</div>
+    <div class="score-number red" id="scoreOverall">—</div>
+    <div class="score-sub">of tracked commitments met</div>
+  </div>
+  <div class="score-cell">
+    <div class="score-label">Critical Issues</div>
+    <div class="score-number red" id="scoreCritical">—</div>
+    <div class="score-sub">need immediate action</div>
+  </div>
+  <div class="score-cell">
+    <div class="score-label">Watch Items</div>
+    <div class="score-number amber" id="scoreWatch">—</div>
+    <div class="score-sub">at risk / insufficient data</div>
+  </div>
+  <div class="score-cell">
+    <div class="score-label">On Track</div>
+    <div class="score-number green" id="scoreOk">—</div>
+    <div class="score-sub">confirmed compliant</div>
+  </div>
+  <div class="score-cell">
+    <div class="score-label">Last API Pull</div>
+    <div class="score-number" style="font-size:1.4rem;color:var(--muted)" id="scoreTime">—</div>
+    <div class="score-sub">data.norfolk.gov</div>
+  </div>
+</div>
+
+<div class="main-content">
+
+  <div class="section-header">🌳 Tree Canopy · Land Goal 1, Obj. 1</div>
+  <div class="metric-grid" id="canopyCards"></div>
+
+  <div class="section-header">💧 Wetlands & Shorelines · Water Goal 1</div>
+  <div class="metric-grid" id="wetlandsCards"></div>
+
+  <div class="section-header">🌧 Stormwater / LID · Land Goal 2</div>
+  <div class="metric-grid" id="stormwaterCards"></div>
+
+  <div class="section-header">🏞 Parks & Access · Land Goal 3</div>
+  <div class="metric-grid" id="parksCards"></div>
+
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">—</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--muted);margin-top:0.3rem" id="modalRef">—</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕ Close</button>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">GIP Commitment</div>
+      <div class="modal-section-body" id="modalCommitment">—</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Current Status</div>
+      <div class="modal-section-body" id="modalStatus">—</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-label">Required Actions (from plan)</div>
+      <ul class="modal-actions-list" id="modalActions"></ul>
+    </div>
+    <div class="data-panel" id="modalDataPanel">
+      <div class="data-panel-title">Live API Data</div>
+      <div id="modalApiData">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <div class="footer-text">Source: Norfolk Green Infrastructure Plan (July 2018) · data.norfolk.gov API · Built for community accountability</div>
+  <div class="footer-text">This is a citizen monitoring tool. Data reflects city's own published open data.</div>
+</footer>
+
+<script>
+// =============================================
+// GIP COMMITMENT DATABASE
+// Sourced directly from the 2018 GIP document
+// =============================================
+const GIP_METRICS = [
+  // CANOPY
+  {
+    id: 'canopy-baseline',
+    category: 'canopy',
+    title: 'Citywide Tree Canopy Coverage',
+    status: 'critical',
+    ref: 'Land Goal 1, Obj. 1 · GIP p.23',
+    commitment: 'Achieve 30% canopy coverage (from 25.8% baseline measured in 2017). plaNorfolk2030 original goal was 40%; GIP revised to 30% as max achievable. Canopy map update required every 5 years.',
+    current: 'Baseline: 25.8% (2017 imagery). Target: 30%. Gap: ~4.2 percentage points. City must add ~84,000 trees net to reach target.',
+    actions: [
+      'Plant 5,200 trees annually in priority watersheds (benchmark from GIP p.23)',
+      'Net positive of 4,200/yr after 1,000 annual mortality = 84,000 trees over 20 years',
+      'Target neighborhoods where canopy < 30%',
+      'Update canopy map every 5 years (last: 2017; overdue update: 2022)'
+    ],
+    datasetHints: ['trees', 'canopy', 'tree permit', 'urban forest'],
+    metric: { label: 'Canopy %', baseline: 25.8, target: 30, unit: '%', color: 'red' }
+  },
+  {
+    id: 'canopy-planting-rate',
+    category: 'canopy',
+    title: 'Annual Tree Planting Rate',
+    status: 'critical',
+    ref: 'Land Goal 1, Obj. 1, Action 1 · GIP p.23',
+    commitment: 'Plant 5,200 trees per year in priority areas. City was planting only 2,000/yr at time of plan — a 3,200/yr shortfall.',
+    current: 'Required: 5,200/yr. Reported at plan publication: 2,000/yr. Current actual rate: UNKNOWN — data gap.',
+    actions: [
+      'Increase planting from 2,000 to 5,200 trees/yr immediately',
+      'Track address of every donated/planted tree',
+      'Hold community adoption events in priority neighborhoods',
+      'Report annually to WMTF'
+    ],
+    datasetHints: ['tree planting', 'street trees', 'urban forest permit'],
+    metric: { label: 'Trees/yr', baseline: 2000, target: 5200, unit: 'trees', color: 'red' }
+  },
+  {
+    id: 'canopy-schools',
+    category: 'canopy',
+    title: 'School Campus Tree Canopy',
+    status: 'critical',
+    ref: 'Land Goal 1, Obj. 1 · GIP p.22',
+    commitment: 'Baseline school canopy: 19%. 248,840 additional trees possible on school sites (16.5% PPA). Schools are priority planting zones.',
+    current: 'School canopy was 19% at baseline. Potential to plant 248,840 more trees on school sites. Current status: unknown without updated data pull.',
+    actions: [
+      'Develop policy requiring GI practices in all new NPS facilities',
+      'Engage students to design and install infiltrative practices',
+      'Implement ODU green infrastructure training modules in Earth Science classes'
+    ],
+    datasetHints: ['school', 'parks', 'vegetation'],
+    metric: { label: 'School Canopy', baseline: 19, target: 30, unit: '%', color: 'amber' }
+  },
+  {
+    id: 'canopy-diversity',
+    category: 'canopy',
+    title: 'Species Diversity (Crepe Myrtle Monoculture)',
+    status: 'watch',
+    ref: 'Land Goal 1, Obj. 4 · GIP p.25',
+    commitment: 'City canopy estimated up to 50% crepe myrtles at time of plan. Diversify species, especially salt-tolerant types for flood-prone areas. Crepe myrtles provide minimal stormwater uptake, shade, or pollinator habitat.',
+    current: 'Flagged as systemic risk. No measurable diversity target set in GIP, but native species mandate exists. Current species breakdown: unknown without tree inventory pull.',
+    actions: [
+      'Create city planting list with salt-tolerant, climate-resilient species',
+      'Promote Bay Star Homes program for native plantings',
+      'Implement citizen tree survey for diversity tracking',
+      'Partner with local nurseries on native species availability'
+    ],
+    datasetHints: ['tree inventory', 'species', 'street trees'],
+    metric: null
+  },
+
+  // WETLANDS
+  {
+    id: 'wetlands-master-plan',
+    category: 'wetlands',
+    title: 'City Wetland Restoration Master Plan',
+    status: 'watch',
+    ref: 'Water Goal 1, Obj. 1, Action 1 · GIP p.56',
+    commitment: 'Develop master plan of sites on city-owned land to restore wetlands, prioritized by site condition and location. 380 acres identified for forested shoreline buffer restoration (16.8% of shoreline canopy potential).',
+    current: 'Master plan was to be developed. Status unknown. 380 acres of buffer restoration opportunity documented but no compliance tracking data available publicly.',
+    actions: [
+      'Develop and publish wetland restoration master plan',
+      'Prioritize 380 acres of forested buffer restoration',
+      'Partner with ERP: pays 50% of living shoreline costs (up to $4,000) and 50% of buffer costs (up to $1,500)',
+      'Annual reporting to WMTF through ERP contract'
+    ],
+    datasetHints: ['wetlands', 'shoreline', 'restoration', 'living shoreline'],
+    metric: { label: 'Buffer acres restored', baseline: 0, target: 380, unit: 'ac', color: 'amber' }
+  },
+  {
+    id: 'wetlands-buffers-public',
+    category: 'wetlands',
+    title: 'Public Property Shoreline Buffers (CBPA)',
+    status: 'watch',
+    ref: 'Water Goal 1, Obj. 2, Action 3 · WG1.2.3',
+    commitment: 'Restore forested buffers on public property where deficient in current Chesapeake Bay Preservation Area (CBPA), and in areas where CBPA may extend by 2040. Budget: ~$100k/year for pilot projects.',
+    current: 'Program budgeted at $100k/yr. Mayflower Ave pilot documented at $12,848. Scale of completion vs. total deficient acreage unknown.',
+    actions: [
+      'Identify all deficient CBPA buffer sections on public land',
+      'Fund $100k/yr for buffer enhancement pilots',
+      'Highlight visible pilot projects to drive private participation',
+      'Restore buffers proactively in projected 2040 CBPA expansion zones'
+    ],
+    datasetHints: ['CBPA', 'buffer', 'shoreline restoration', 'vegetation'],
+    metric: { label: 'Program budget utilized', baseline: 0, target: 100, unit: '$k/yr', color: 'amber' }
+  },
+  {
+    id: 'wetlands-oysters',
+    category: 'wetlands',
+    title: 'Oyster Reef Restoration',
+    status: 'ok',
+    ref: 'Water Goal 1, Obj. 1, Action 3 · WG1.1.3',
+    commitment: 'Add oyster habitat to shoreline restoration projects. Goal: 80 acres of functioning oyster reef in Lafayette watershed (on track as of 2017). 1.44 acres restored at Hermitage Museum in fall 2017.',
+    current: 'Lafayette River removed from DEQ bacteria-impaired list in June 2016 — a documented win. Lafayette watershed on track to meet 80-acre oyster goal as of plan publication. Need verification of current status.',
+    actions: [
+      'Develop inventory of existing oyster resources in all tidal waterbodies',
+      'Continue adding oyster elements to every shoreline restoration project',
+      'Track total restored reef acreage annually'
+    ],
+    datasetHints: ['oyster', 'reef', 'Lafayette', 'shoreline'],
+    metric: { label: 'Oyster reef acres', baseline: 1.44, target: 80, unit: 'ac', color: 'green' }
+  },
+  {
+    id: 'wetlands-phragmites',
+    category: 'wetlands',
+    title: 'Phragmites (Invasive) Removal',
+    status: 'watch',
+    ref: 'Water Goal 1, Obj. 4 · WG1.4.2',
+    commitment: 'Coordinate with military for phragmites removal around naval base. Develop community group programs via Lafayette Wetlands Partnership. Create citizen monitoring protocol.',
+    current: 'Program described but no quantified removal targets in GIP. Current removal acreage unknown.',
+    actions: [
+      'Military coordination for phragmites removal program',
+      'Work with civic leagues to expand removal campaigns',
+      'Lafayette Wetlands Partnership phragmites assistance program',
+      'Develop volunteer monitoring protocol'
+    ],
+    datasetHints: ['invasive', 'phragmites', 'wetland management'],
+    metric: null
+  },
+  {
+    id: 'wetlands-private-shoreline',
+    category: 'wetlands',
+    title: 'Private Property Shoreline Restoration',
+    status: 'watch',
+    ref: 'Water Goal 1, Obj. 1, Action 4 · WG1.1.4',
+    commitment: 'ERP River Star Homes program: 50% cost-share for living shorelines (up to $4,000) and buffers (up to $1,500). City allocates $40,000/yr for this program through Stormwater Utility budget.',
+    current: 'Program budget established. Participation rates unknown. Historically Norfolk wetlands heavily filled/modified — high restoration need.',
+    actions: [
+      'Maintain $40,000/yr ERP contract for private shoreline cost-share',
+      'Annual ERP reporting to Public Works Stormwater',
+      'Expand awareness via Bay Star and River Star Homes programs',
+      'Track number of private shoreline projects completed annually'
+    ],
+    datasetHints: ['permits', 'shoreline', 'wetlands', 'living shoreline permit'],
+    metric: { label: 'Program spend', baseline: 0, target: 40, unit: '$k/yr', color: 'amber' }
+  },
+
+  // STORMWATER
+  {
+    id: 'stormwater-impervious',
+    category: 'stormwater',
+    title: 'Impervious Surface Coverage',
+    status: 'watch',
+    ref: 'Context · GIP p.24',
+    commitment: 'City is 47.89% impervious (plus 3.18% impervious under canopy). No explicit reduction target in GIP, but reducing impervious surface is a core LID objective. Every parking lot retrofit and green roof reduces this number.',
+    current: 'Baseline: 47.89% impervious. No GIP reduction target quantified. Each 1% reduction = significant stormwater volume reduction. Large mature tree uptakes 3,000+ gallons/yr.',
+    actions: [
+      'Retrofit city-owned parking lots with bioswales and depressed medians',
+      'Create roof-top retrofit opportunity zones for high-imperviousness areas',
+      'Require GI practices in all new city/NPS facility designs',
+      'Develop stormwater fee reduction incentives for parking lot and roof retrofits'
+    ],
+    datasetHints: ['stormwater', 'impervious', 'LID', 'bioswale', 'green roof'],
+    metric: { label: 'Impervious %', baseline: 47.89, target: 44, unit: '%', color: 'amber', invertedGood: true }
+  },
+  {
+    id: 'stormwater-parking',
+    category: 'stormwater',
+    title: 'Parking Lot Bioswale Retrofits',
+    status: 'watch',
+    ref: 'Land Goal 2, Obj. 2 · GIP p.53',
+    commitment: 'Identify and retrofit city-owned parking lots with bioswales, depressed medians, or water storage. Promote as stormwater fee reduction mechanism for private lot owners.',
+    current: 'Program recommended; no baseline count of retrofitted lots reported in GIP. Current count: unknown without API data.',
+    actions: [
+      'Publish list of city-owned lots eligible for retrofit',
+      'Begin with lots needing resurfacing (lowest additional cost)',
+      'Create stormwater fee reduction for participating private owners',
+      'Track gallons retained per completed retrofit'
+    ],
+    datasetHints: ['parking', 'stormwater', 'bioswale', 'LID permit'],
+    metric: null
+  },
+  {
+    id: 'stormwater-schools-parks',
+    category: 'stormwater',
+    title: 'Schools/Parks as LID Demonstration Sites',
+    status: 'watch',
+    ref: 'Land Goal 2, Obj. 1 · GIP p.53',
+    commitment: 'Policy requiring green infrastructure in all new city and NPS facilities. ODU training modules deployed in Earth Science classes starting Jan 2018. Students to design and install infiltrative practices.',
+    current: 'ODU modules launched Jan 2018. Policy requirement status for new builds unknown. Number of completed school/park GI projects: unknown.',
+    actions: [
+      'Confirm GI policy is enforceable in all new NPS facility designs',
+      'Track number of schools with completed GI installations',
+      'Expand ODU modules beyond Earth Science',
+      'Identify sites for stormwater learning park'
+    ],
+    datasetHints: ['school', 'park', 'green infrastructure', 'stormwater project'],
+    metric: null
+  },
+  {
+    id: 'stormwater-creek-daylight',
+    category: 'stormwater',
+    title: 'Creek Daylighting (Buried Creek Restoration)',
+    status: 'unknown',
+    ref: 'Land Goal 1, Obj. 7 · GIP p.52',
+    commitment: 'Identify filled/buried creeks suitable for daylighting as part of resilience and development plans. Engage community in design of new creek or wetland parks.',
+    current: 'Aspirational action. No baseline or target acreage defined. Status completely unknown.',
+    actions: [
+      'Produce map of buried/filled creek network (Hague area documented as example)',
+      'Identify top candidate daylighting sites',
+      'Integrate with Capital Improvement Program',
+      'Community engagement process for creek park design'
+    ],
+    datasetHints: ['creek', 'stormwater pipe', 'drainage', 'waterway'],
+    metric: null
+  },
+
+  // PARKS
+  {
+    id: 'parks-quarter-mile',
+    category: 'parks',
+    title: 'Park Access: ¼-Mile Walk Zone Coverage',
+    status: 'watch',
+    ref: 'Land Goal 3, Obj. 1 · GIP p.51',
+    commitment: 'Goal: 100% of residences within ¼ mile of a park. Baseline: 48% of residents within ¼ mile (52% in gap zones). Parks must be ≥0.5 acres to qualify.',
+    current: 'Only 48% of residents within ¼-mile walk of a qualifying park at baseline. 52% in gap zones. Sea level rise will further reduce accessible parkland.',
+    actions: [
+      'Build new parks in gap communities',
+      'Replace parkland lost to sea level rise and storm surge',
+      'Add boardwalks/boating access to partially inundated parks',
+      'Prioritize gap zones identified in GIP park access maps'
+    ],
+    datasetHints: ['parks', 'recreation', 'open space', 'park access'],
+    metric: { label: 'Residents w/in ¼mi', baseline: 48, target: 100, unit: '%', color: 'amber' }
+  },
+  {
+    id: 'parks-sea-level',
+    category: 'parks',
+    title: 'Parkland at Risk from Sea Level Rise',
+    status: 'watch',
+    ref: 'Land Goal 3, Obj. 1, Action 2 · GIP p.51',
+    commitment: 'Replace parkland lost to inundation. Adapt partially-flooded parks with boardwalks and water access. Norfolk SLR projections prepared by ODU (2014 data).',
+    current: 'Specific at-risk park acreage not quantified in GIP. ODU SLR data exists. No replacement parks confirmed built as of last known reporting.',
+    actions: [
+      'Inventory all parks in Special Flood Hazard Area',
+      'Model projected inundation timeline by park',
+      'Identify replacement park sites in inland gap zones',
+      'Prioritize capital budget for adaptation'
+    ],
+    datasetHints: ['parks', 'flood', 'sea level rise', 'SFHA', 'recreation'],
+    metric: null
+  }
+];
+
+// =============================================
+// STATE
+// =============================================
+let apiData = {};
+let apiLive = false;
+let activeFilter = 'all';
+const NORFOLK_API_BASE = 'https://data.norfolk.gov/api/explore/v2.1';
+const API_KEY = '45r6rxaa24u5z8ek4glwvqbks';
+
+// =============================================
+// RENDER
+// =============================================
+function renderCards() {
+  const sections = {
+    canopy: document.getElementById('canopyCards'),
+    wetlands: document.getElementById('wetlandsCards'),
+    stormwater: document.getElementById('stormwaterCards'),
+    parks: document.getElementById('parksCards')
+  };
+
+  Object.values(sections).forEach(s => s.innerHTML = '');
+
+  GIP_METRICS.forEach(m => {
+    const el = buildCard(m);
+    if (sections[m.category]) sections[m.category].appendChild(el);
+  });
+
+  updateScorecard();
+}
+
+function buildCard(m) {
+  const div = document.createElement('div');
+  div.className = `metric-card ${activeFilter !== 'all' && activeFilter !== m.status ? 'hidden' : ''}`;
+  div.onclick = () => openModal(m);
+
+  const data = apiData[m.id] || {};
+
+  let progressHTML = '';
+  if (m.metric) {
+    const { label, baseline, target, unit, color, invertedGood } = m.metric;
+    const current = data.currentValue ?? baseline;
+    const pct = invertedGood
+      ? Math.max(0, Math.min(100, ((baseline - current) / (baseline - target)) * 100))
+      : Math.max(0, Math.min(100, ((current - baseline) / (target - baseline)) * 100));
+    const displayVal = data.currentValue != null ? data.currentValue : `${baseline} (baseline)`;
+    progressHTML = `
+      <div class="progress-section">
+        <div class="progress-meta">
+          <span>${label}: <strong style="color:var(--paper)">${displayVal}${unit}</strong></span>
+          <span>Target: ${target}${unit}</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill ${color}" style="width:${pct}%"></div>
+          <div class="benchmark" style="left:${invertedGood ? 100 : 100}%"></div>
+        </div>
+        <div class="progress-meta"><span>${baseline}${unit} baseline</span><span>${target}${unit} goal</span></div>
+      </div>`;
+  }
+
+  const apiNote = data.fetched
+    ? `<div class="data-row"><span class="data-key">API:</span><span class="data-val">${data.summary}</span></div>`
+    : `<div class="data-row"><span class="data-key">API:</span><span class="data-val ${apiLive ? 'loading' : 'error-val'}">${apiLive ? '<span class="spinner"></span>searching…' : 'No matching dataset found'}</span></div>`;
+
+  div.innerHTML = `
+    <div class="card-top">
+      <div class="card-category">${m.ref}</div>
+      <div class="status-pill ${m.status}">${m.status}</div>
+    </div>
+    <div class="card-title">${m.title}</div>
+    ${progressHTML}
+    <div class="card-note">${m.current.substring(0, 120)}${m.current.length > 120 ? '…' : ''}</div>
+    ${apiNote}
+  `;
+
+  return div;
+}
+
+function updateScorecard() {
+  const counts = { critical: 0, watch: 0, ok: 0, unknown: 0 };
+  GIP_METRICS.forEach(m => counts[m.status] = (counts[m.status] || 0) + 1);
+  const total = GIP_METRICS.length;
+  const onTrack = counts.ok;
+
+  document.getElementById('scoreOverall').textContent = `${onTrack}/${total}`;
+  document.getElementById('scoreCritical').textContent = counts.critical;
+  document.getElementById('scoreWatch').textContent = counts.watch + (counts.unknown || 0);
+  document.getElementById('scoreOk').textContent = counts.ok;
+}
+
+// =============================================
+// FILTER
+// =============================================
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active', 'critical', 'watch', 'ok');
+  });
+  btn.classList.add('active');
+  if (filter !== 'all') btn.classList.add(filter);
+
+  document.querySelectorAll('.metric-card').forEach(card => {
+    const pill = card.querySelector('.status-pill');
+    if (!pill) return;
+    const status = pill.classList[1];
+    card.classList.toggle('hidden', filter !== 'all' && filter !== status);
+  });
+}
+
+// =============================================
+// MODAL
+// =============================================
+function openModal(m) {
+  document.getElementById('modalTitle').textContent = m.title;
+  document.getElementById('modalRef').textContent = m.ref;
+  document.getElementById('modalCommitment').textContent = m.commitment;
+  document.getElementById('modalStatus').textContent = m.current;
+
+  const ul = document.getElementById('modalActions');
+  ul.innerHTML = '';
+  m.actions.forEach(a => {
+    const li = document.createElement('li');
+    li.textContent = a;
+    ul.appendChild(li);
+  });
+
+  // API data panel
+  const apiDiv = document.getElementById('modalApiData');
+  const d = apiData[m.id];
+  if (d && d.fetched) {
+    apiDiv.innerHTML = Object.entries(d.raw || {}).map(([k,v]) =>
+      `<div class="data-entry"><span class="dk">${k}: </span><span class="dv">${JSON.stringify(v).substring(0, 80)}</span></div>`
+    ).join('') || '<div style="color:var(--muted)">Dataset found but no records returned.</div>';
+  } else {
+    apiDiv.innerHTML = `<div style="color:var(--muted)">Searched for: ${m.datasetHints.join(', ')}<br>No matching dataset found in public catalog.<br><span style="color:var(--amber)">→ This may indicate a data gap or unpublished dataset.</span></div>`;
+  }
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// =============================================
+// API FETCH (runs in user's browser — no proxy)
+// =============================================
+async function fetchNorfolkCatalog() {
+  try {
+    const res = await fetch(
+      `${NORFOLK_API_BASE}/catalog/datasets?limit=100&apikey=${API_KEY}`
+    );
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json();
+
+    apiLive = true;
+    document.getElementById('apiDot').classList.add('live');
+    document.getElementById('apiStatusText').textContent = `Connected · ${json.total_count || '?'} datasets`;
+
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('scoreTime').textContent = now;
+    document.getElementById('lastRefresh').textContent = `Last refresh: ${now}`;
+
+    // Try to match datasets to metrics
+    const datasets = json.datasets || [];
+    for (const m of GIP_METRICS) {
+      for (const hint of m.datasetHints) {
+        const match = datasets.find(d => {
+          const title = (d.dataset?.metas?.default?.title || '').toLowerCase();
+          const desc = (d.dataset?.metas?.default?.description || '').toLowerCase();
+          return title.includes(hint.toLowerCase()) || desc.includes(hint.toLowerCase());
+        });
+        if (match) {
+          const dsId = match.dataset?.dataset_id;
+          await fetchDataset(m.id, dsId, match.dataset?.metas?.default?.title);
+          break;
+        }
+      }
+    }
+
+    renderCards();
+    return datasets;
+
+  } catch(err) {
+    document.getElementById('apiDot').classList.add('error');
+    document.getElementById('apiStatusText').textContent = `API error: ${err.message}`;
+    document.getElementById('scoreTime').textContent = 'ERR';
+    renderCards();
+  }
+}
+
+async function fetchDataset(metricId, datasetId, title) {
+  if (!datasetId) return;
+  try {
+    const res = await fetch(
+      `${NORFOLK_API_BASE}/catalog/datasets/${datasetId}/records?limit=1&apikey=${API_KEY}`
+    );
+    const json = await res.json();
+    const count = json.total_count;
+    apiData[metricId] = {
+      fetched: true,
+      summary: `${title} · ${count} records`,
+      datasetId,
+      count,
+      raw: json.results?.[0]?.record?.fields || {}
+    };
+  } catch(e) {
+    // silently fail per-dataset
+  }
+}
+
+// =============================================
+// EXPORT JSON
+// =============================================
+function exportJSON() {
+  const payload = {
+    generated: new Date().toISOString(),
+    source: 'Norfolk GIP Compliance Dashboard',
+    gipDocument: 'Norfolk Green Infrastructure Plan, July 2018',
+    apiConnected: apiLive,
+    summary: {
+      total: GIP_METRICS.length,
+      critical: GIP_METRICS.filter(m=>m.status==='critical').length,
+      watch: GIP_METRICS.filter(m=>m.status==='watch').length,
+      ok: GIP_METRICS.filter(m=>m.status==='ok').length,
+      unknown: GIP_METRICS.filter(m=>m.status==='unknown').length
+    },
+    metrics: GIP_METRICS.map(m => ({
+      id: m.id,
+      category: m.category,
+      title: m.title,
+      status: m.status,
+      gipReference: m.ref,
+      commitment: m.commitment,
+      currentStatus: m.current,
+      requiredActions: m.actions,
+      metric: m.metric,
+      apiData: apiData[m.id] || null
+    }))
+  };
+
+  const jsonStr = JSON.stringify(payload, null, 2);
+  
+  // Try clipboard first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jsonStr).then(() => {
+      showToast('JSON copied to clipboard ✓');
+    }).catch(() => showJsonModal(jsonStr));
+  } else {
+    showJsonModal(jsonStr);
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =============================================
+// JSON MODAL FALLBACK
+// =============================================
+function showJsonModal(jsonStr) {
+  // Reuse modal for JSON display
+  document.getElementById('modalTitle').textContent = 'Export JSON';
+  document.getElementById('modalRef').textContent = 'Copy this and paste into Claude or save manually';
+  document.getElementById('modalCommitment').textContent = '';
+  document.getElementById('modalStatus').textContent = '';
+  document.getElementById('modalActions').innerHTML = '';
+  document.getElementById('modalApiData').innerHTML = 
+    `<textarea style="width:100%;height:300px;background:#0a0a0a;color:#88d4a8;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;border:none;padding:0.5rem;resize:vertical" readonly>${jsonStr}</textarea>
+     <button onclick="navigator.clipboard.writeText(document.querySelector('textarea').value).then(()=>showToast('Copied ✓'))" 
+       style="margin-top:0.5rem;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;padding:0.4rem 0.8rem;background:var(--paper);color:var(--ink);border:none;cursor:pointer;letter-spacing:0.1em">
+       COPY TO CLIPBOARD
+     </button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+// =============================================
+// INIT
+// =============================================
+renderCards();
+updateScorecard();
+fetchNorfolkCatalog();
+</script>
+</body>
+</html>
