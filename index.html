@@ -1280,6 +1280,25 @@ function showJsonModal(jsonStr) {
 }
 
 // =============================================
+// SNAPSHOT LOADER
+// =============================================
+let snapshot = null;
+
+async function loadSnapshot() {
+  try {
+    const res = await fetch('/data/gip_snapshot.json');
+    if (res.ok) {
+      snapshot = await res.json();
+      const ts = snapshot.generated ? new Date(snapshot.generated).toLocaleString() : '?';
+      document.getElementById('lastRefresh').textContent = `Snapshot: ${ts}`;
+      dbg(`Loaded snapshot from ${ts}`, 'ok');
+    }
+  } catch(e) {
+    dbg('No snapshot found, using live API only', 'info');
+  }
+}
+
+// =============================================
 // LIVE ANALYSIS QUERIES
 // =============================================
 async function runAnalysis() {
@@ -1287,12 +1306,13 @@ async function runAnalysis() {
   const content = document.getElementById('analysisContent');
   content.innerHTML = '';
   panel.style.display = 'block';
+  await loadSnapshot();
 
-  await analysisTreeInventory(content);       // cmvv-agyb  City Tree Inventory
-  await analysisTreePlanting(content);        // u85v-sad9  Tree Planting Program
-  await analysisMeetingNotices(content);      // dszu-h9cf  Public Meeting Notices (wetlands board, tree commission)
-  await analysisWorkOrders(content);          // qzfe-wj25  Work Orders (tree/stormwater)
-  await analysisTideSensors(content);         // mgyn-4sni  Tide Sensors
+  await analysisTreePlanting(content);
+  await analysisWorkOrders(content);
+  await analysisTreeInventory(content);
+  await analysisMeetingNotices(content);
+  await analysisTideSensors(content);
 }
 
 function makeCell(title) {
@@ -1347,14 +1367,20 @@ async function analysisTreePlanting(container) {
   const cell = makeCell('📈 Tree Planting Program · Annual Rate vs 5,200/yr Benchmark');
   container.appendChild(cell);
   try {
-    const res = await fetch('/api/norfolk/resource/u85v-sad9.json?$select=program_year,count(*)%20as%20n&$group=program_year&$order=program_year');
-    const rows = await res.json();
-    if (!rows.length) { cellBody(cell).textContent = 'No data.'; return; }
     const TARGET = 5200;
-    let html = '';
-    let total = 0;
+    let rows;
+    if (snapshot?.datasets?.tree_planting_by_year) {
+      const d = snapshot.datasets.tree_planting_by_year;
+      rows = d.years.map(y => ({ program_year: y.year, n: y.trees_planted }));
+      dbg('tree_planting: using snapshot', 'ok');
+    } else {
+      const res = await fetch('/api/norfolk/resource/u85v-sad9.json?$select=program_year,count(*)%20as%20n&$group=program_year&$order=program_year');
+      rows = await res.json();
+    }
+    if (!rows.length) { cellBody(cell).textContent = 'No data.'; return; }
+    let html = '', total = 0;
     rows.forEach(r => {
-      const n = parseInt(r.n);
+      const n = parseInt(r.n || r.trees_planted);
       total += n;
       const cls = n >= TARGET ? 'good' : n >= 3000 ? 'warn' : 'bad';
       const diff = n - TARGET;
@@ -1414,6 +1440,30 @@ async function analysisWorkOrders(container) {
   const cell = makeCell('🔧 Work Orders · Forestry & Stormwater Activity');
   container.appendChild(cell);
   try {
+    // Use snapshot if available
+    if (snapshot?.datasets?.forestry_work_orders) {
+      const d = snapshot.datasets.forestry_work_orders;
+      dbg('work_orders: using snapshot', 'ok');
+      let html = `<div class="analysis-row"><span class="analysis-key" style="color:var(--paper)">Forestry work orders by task</span></div>`;
+      d.tasks.forEach(t => {
+        const isRemoval = /remov|grind|stump/i.test(t.task||'');
+        const isPlant = /plant/i.test(t.task||'');
+        const cls = isRemoval ? 'bad' : isPlant ? 'good' : '';
+        html += `<div class="analysis-row"><span class="analysis-key">${t.task||'?'}</span><span class="analysis-val ${cls}">${t.count.toLocaleString()}</span></div>`;
+      });
+      if (d.by_year?.length) {
+        html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">By year</span></div>`;
+        d.by_year.forEach(y => {
+          html += `<div class="analysis-row"><span class="analysis-key">${y.year}</span><span class="analysis-val">${y.orders.toLocaleString()} orders</span></div>`;
+        });
+      }
+      const ratio = d.removal_to_planting_ratio;
+      const finding = ratio > 1
+        ? `Removals (${d.total_removals.toLocaleString()}) outpace plantings (${d.total_plantings.toLocaleString()}) — ratio ${ratio}:1. Net canopy loss in progress per city's own work order data.`
+        : `Plantings (${d.total_plantings.toLocaleString()}) vs removals (${d.total_removals.toLocaleString()}).`;
+      cellBody(cell).innerHTML = html + `<div class="analysis-finding">${finding}</div>`;
+      return;
+    }
     const [taskRes, stormRes, yearRes] = await Promise.all([
       // Forestry work orders by task type
       fetch("/api/norfolk/resource/qzfe-wj25.json?$where=area='Forestry'&$select=primary_task_description,count(*)%20as%20n&$group=primary_task_description&$order=n%20desc&$limit=10"),

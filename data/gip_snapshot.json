@@ -1,0 +1,72 @@
+{
+  "generated": "2026-03-29T12:37:01.195999+00:00",
+  "note": "Seed data from local CSV analysis \u2014 will be replaced by GitHub Actions",
+  "datasets": {
+    "forestry_work_orders": {
+      "dataset_id": "qzfe-wj25",
+      "label": "Forestry Work Orders \u2014 Task Breakdown",
+      "total_removals": 4691,
+      "total_plantings": 471,
+      "removal_to_planting_ratio": 9.9,
+      "net_canopy_direction": "loss",
+      "tasks": [
+        {
+          "task": "Pruning",
+          "count": 2666
+        },
+        {
+          "task": "Stump Grinding",
+          "count": 2479
+        },
+        {
+          "task": "Removal",
+          "count": 2212
+        },
+        {
+          "task": "Plantings",
+          "count": 471
+        },
+        {
+          "task": "Tree Production Operations",
+          "count": 305
+        },
+        {
+          "task": "Tree Maintenance",
+          "count": 278
+        },
+        {
+          "task": "Inspection",
+          "count": 63
+        }
+      ],
+      "by_year": [
+        {
+          "year": "2020",
+          "orders": 1021
+        },
+        {
+          "year": "2021",
+          "orders": 1513
+        },
+        {
+          "year": "2022",
+          "orders": 1891
+        },
+        {
+          "year": "2023",
+          "orders": 1814
+        },
+        {
+          "year": "2024",
+          "orders": 1429
+        },
+        {
+          "year": "2025",
+          "orders": 859
+        }
+      ]
+    }
+  },
+  "errors": [],
+  "success": true
+}
