@@ -1409,36 +1409,65 @@ async function analysisMeetingNotices(container) {
 }
 
 // Work Orders (qzfe-wj25) — tree and stormwater work
+// Schema: area='Forestry', category_code starts FOR*, primary_task_description for type
 async function analysisWorkOrders(container) {
-  const cell = makeCell('🔧 Work Orders · Tree & Stormwater Activity');
+  const cell = makeCell('🔧 Work Orders · Forestry & Stormwater Activity');
   container.appendChild(cell);
   try {
-    const [treeRes, stormRes] = await Promise.all([
-      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=upper(work_type)%20like%20'%25TREE%25'&$select=work_type,count(*)%20as%20n&$group=work_type&$order=n%20desc&$limit=8"),
-      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=upper(work_type)%20like%20'%25STORM%25'%20OR%20upper(work_type)%20like%20'%25DRAIN%25'&$select=work_type,count(*)%20as%20n&$group=work_type&$order=n%20desc&$limit=6"),
+    const [taskRes, stormRes, yearRes] = await Promise.all([
+      // Forestry work orders by task type
+      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=area='Forestry'&$select=primary_task_description,count(*)%20as%20n&$group=primary_task_description&$order=n%20desc&$limit=10"),
+      // Stormwater/drainage by category
+      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=upper(category_description)%20like%20'%25STORM%25'%20OR%20upper(category_description)%20like%20'%25DRAIN%25'%20OR%20upper(category_description)%20like%20'%25WETLAND%25'&$select=category_description,count(*)%20as%20n&$group=category_description&$order=n%20desc&$limit=8"),
+      // Forestry work orders by year (created_datetime)
+      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=area='Forestry'&$select=date_trunc_y(created_datetime)%20as%20yr,count(*)%20as%20n&$group=date_trunc_y(created_datetime)&$order=yr%20desc&$limit=6"),
     ]);
-    const [treeOrders, stormOrders] = await Promise.all([treeRes.json(), stormRes.json()]);
+    const [tasks, storm, years] = await Promise.all([taskRes.json(), stormRes.json(), yearRes.json()]);
 
     let html = '';
-    if (treeOrders.length) {
-      html += `<div class="analysis-row"><span class="analysis-key" style="color:var(--paper)">Tree work orders</span></div>`;
-      treeOrders.forEach(r => {
-        html += `<div class="analysis-row"><span class="analysis-key">${r.work_type}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()}</span></div>`;
+
+    // Forestry by task
+    if (tasks.length) {
+      html += `<div class="analysis-row"><span class="analysis-key" style="color:var(--paper)">Forestry work orders by task</span></div>`;
+      tasks.forEach(r => {
+        const isRemoval = /remov|grind|stump/i.test(r.primary_task_description||'');
+        const isPlant = /plant|install|new tree/i.test(r.primary_task_description||'');
+        const cls = isRemoval ? 'bad' : isPlant ? 'good' : '';
+        html += `<div class="analysis-row"><span class="analysis-key">${r.primary_task_description||'Unknown'}</span><span class="analysis-val ${cls}">${parseInt(r.n).toLocaleString()}</span></div>`;
+      });
+    }
+
+    // Forestry by year
+    if (years.length) {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Forestry orders by year</span></div>`;
+      years.forEach(r => {
+        const yr = r.yr ? r.yr.substring(0,4) : '?';
+        html += `<div class="analysis-row"><span class="analysis-key">${yr}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()} orders</span></div>`;
+      });
+    }
+
+    // Stormwater
+    if (storm.length) {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Stormwater/drainage orders</span></div>`;
+      storm.forEach(r => {
+        html += `<div class="analysis-row"><span class="analysis-key">${r.category_description}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()}</span></div>`;
       });
     } else {
-      html += `<div class="analysis-row"><span class="analysis-key">Tree work orders</span><span class="analysis-val warn">No results — check field name</span></div>`;
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key">Stormwater orders</span><span class="analysis-val warn">None found — may use different category name</span></div>`;
     }
-    if (stormOrders.length) {
-      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Stormwater work orders</span></div>`;
-      stormOrders.forEach(r => {
-        html += `<div class="analysis-row"><span class="analysis-key">${r.work_type}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()}</span></div>`;
-      });
+
+    // Finding: ratio of removals to plantings
+    const removals = tasks.filter(r => /remov|grind|stump/i.test(r.primary_task_description||'')).reduce((s,r)=>s+parseInt(r.n),0);
+    const plantings = tasks.filter(r => /plant|install|new tree/i.test(r.primary_task_description||'')).reduce((s,r)=>s+parseInt(r.n),0);
+    let finding = '';
+    if (removals && plantings) {
+      const ratio = (removals/plantings).toFixed(1);
+      finding = ratio > 1
+        ? `Removals (${removals.toLocaleString()}) outpace plantings (${plantings.toLocaleString()}) — ratio ${ratio}:1. Net canopy loss in progress. GIP requires net gain of 84,000 trees.`
+        : `Plantings (${plantings.toLocaleString()}) outpace removals (${removals.toLocaleString()}) — ratio ${ratio}:1. Verify against Tree Planting Program for full picture.`;
+    } else {
+      finding = `Cross-reference with Tree Planting Program dataset for net canopy trajectory. GIP estimates 1,000 removals/yr must be offset by 5,200 plantings/yr.`;
     }
-    const removals = treeOrders.find(r => /remov/i.test(r.work_type||''));
-    const plantings = treeOrders.find(r => /plant|install/i.test(r.work_type||''));
-    const finding = (removals && plantings)
-      ? `Removals: ${parseInt(removals.n).toLocaleString()} vs plantings: ${parseInt(plantings.n).toLocaleString()}. GIP estimates 1,000 trees lost/yr — compare against removals to assess net canopy change.`
-      : `Work order breakdown shown. Cross-reference removals vs plantings to assess net canopy trajectory.`;
     html += `<div class="analysis-finding">${finding}</div>`;
     cellBody(cell).innerHTML = html;
   } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
