@@ -1288,17 +1288,11 @@ async function runAnalysis() {
   content.innerHTML = '';
   panel.style.display = 'block';
 
-  // 1. Tree planting by year
-  await analysisTreePlanting(content);
-
-  // 2. Significant trees species breakdown
-  await analysisTreeSpecies(content);
-
-  // 3. Tide sensor latest readings
-  await analysisTideSensors(content);
-
-  // 4. Permits - shoreline/wetland keyword search
-  await analysisWetlandPermits(content);
+  await analysisTreeInventory(content);       // cmvv-agyb  City Tree Inventory
+  await analysisTreePlanting(content);        // u85v-sad9  Tree Planting Program
+  await analysisMeetingNotices(content);      // dszu-h9cf  Public Meeting Notices (wetlands board, tree commission)
+  await analysisWorkOrders(content);          // qzfe-wj25  Work Orders (tree/stormwater)
+  await analysisTideSensors(content);         // mgyn-4sni  Tide Sensors
 }
 
 function makeCell(title) {
@@ -1310,132 +1304,168 @@ function makeCell(title) {
 
 function cellBody(cell) { return cell.querySelector('.cell-body'); }
 
-async function analysisTreePlanting(container) {
-  const cell = makeCell('🌳 Tree Planting Program · Annual Rate vs 5,200/yr Target');
+// City Tree Inventory (cmvv-agyb) — full managed tree inventory
+async function analysisTreeInventory(container) {
+  const cell = makeCell('🌳 City Tree Inventory · Species & Condition');
   container.appendChild(cell);
   try {
-    const res = await fetch(
-      '/api/norfolk/resource/u85v-sad9.json?$select=program_year,count(*)%20as%20trees_planted&$group=program_year&$order=program_year'
-    );
-    const rows = await res.json();
-    if (!rows.length) { cellBody(cell).textContent = 'No data returned.'; return; }
+    // Top species
+    const [speciesRes, condRes, totalRes] = await Promise.all([
+      fetch('/api/norfolk/resource/cmvv-agyb.json?$select=common_name,count(*)%20as%20n&$group=common_name&$order=n%20desc&$limit=8'),
+      fetch('/api/norfolk/resource/cmvv-agyb.json?$select=condition,count(*)%20as%20n&$group=condition&$order=n%20desc'),
+      fetch('/api/norfolk/resource/cmvv-agyb.json?$select=count(*)'),
+    ]);
+    const [species, conditions, totArr] = await Promise.all([speciesRes.json(), condRes.json(), totalRes.json()]);
+    const total = parseInt(totArr[0]?.count || 0);
 
-    const TARGET = 5200;
-    let html = '';
-    let totalTrees = 0;
-    let years = [];
-    rows.forEach(r => {
-      const yr = r.program_year || '?';
-      const n = parseInt(r.trees_planted);
-      totalTrees += n;
-      years.push(n);
-      const cls = n >= TARGET ? 'good' : n >= 3000 ? 'warn' : 'bad';
-      html += `<div class="analysis-row"><span class="analysis-key">${yr}</span><span class="analysis-val ${cls}">${n.toLocaleString()} trees ${n >= TARGET ? '✓' : '↓ '+(TARGET-n).toLocaleString()+' short'}</span></div>`;
+    let html = `<div class="analysis-row"><span class="analysis-key">Total inventoried trees</span><span class="analysis-val">${total.toLocaleString()}</span></div>`;
+    html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Top species</span></div>`;
+    species.forEach(r => {
+      const pct = Math.round((parseInt(r.n)/total)*100);
+      const isCrepe = /crape|crepe/i.test(r.common_name || '');
+      html += `<div class="analysis-row"><span class="analysis-key">${r.common_name || 'Unknown'}</span><span class="analysis-val ${isCrepe?'bad':''}">${parseInt(r.n).toLocaleString()} (${pct}%)</span></div>`;
     });
-
-    const avg = Math.round(totalTrees / years.length);
-    const avgCls = avg >= TARGET ? 'good' : avg >= 3000 ? 'warn' : 'bad';
-    const shortfall = TARGET - avg;
-    html += `<div class="analysis-row" style="margin-top:0.4rem;border-top:1px solid var(--card-border)"><span class="analysis-key">Avg/yr</span><span class="analysis-val ${avgCls}">${avg.toLocaleString()}</span></div>`;
-
-    const finding = avg < TARGET
-      ? `Avg ${avg.toLocaleString()} trees/yr planted vs 5,200/yr GIP benchmark — shortfall of ${shortfall.toLocaleString()} trees/yr. At this rate the city will NOT reach 30% canopy within the 20-year window.`
-      : `Avg ${avg.toLocaleString()} trees/yr — meeting or exceeding the 5,200/yr GIP benchmark.`;
-
-    cellBody(cell).innerHTML = html + `<div class="analysis-finding">${finding}</div>`;
-  } catch(e) {
-    cellBody(cell).textContent = `Error: ${e.message}`;
-  }
+    if (conditions.length) {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Condition</span></div>`;
+      conditions.forEach(r => {
+        const cls = /poor|dead|critical/i.test(r.condition||'') ? 'bad' : /fair/i.test(r.condition||'') ? 'warn' : 'good';
+        html += `<div class="analysis-row"><span class="analysis-key">${r.condition||'Unknown'}</span><span class="analysis-val ${cls}">${parseInt(r.n).toLocaleString()}</span></div>`;
+      });
+    }
+    const crepe = species.find(r => /crape|crepe/i.test(r.common_name||''));
+    const crpPct = crepe ? Math.round((parseInt(crepe.n)/total)*100) : 0;
+    const finding = crpPct > 15
+      ? `Crepe/Crape Myrtle = ${crpPct}% of inventoried street trees — GIP flagged 50% monoculture risk. Low stormwater uptake, shade, and pollinator value.`
+      : `${total.toLocaleString()} trees in city inventory. GIP target requires net addition of ~84,000 trees to reach 30% canopy.`;
+    html += `<div class="analysis-finding">${finding}</div>`;
+    cellBody(cell).innerHTML = html;
+  } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
 }
 
-async function analysisTreeSpecies(container) {
-  const cell = makeCell('🌿 Significant Trees · Species Distribution');
+// Tree Planting Program (u85v-sad9) — annual planting vs 5,200/yr benchmark
+async function analysisTreePlanting(container) {
+  const cell = makeCell('📈 Tree Planting Program · Annual Rate vs 5,200/yr Benchmark');
   container.appendChild(cell);
   try {
-    const res = await fetch(
-      '/api/norfolk/resource/jz6u-9g3c.json?$select=common_name,count(*)%20as%20count&$group=common_name&$order=count%20desc&$limit=8'
-    );
+    const res = await fetch('/api/norfolk/resource/u85v-sad9.json?$select=program_year,count(*)%20as%20n&$group=program_year&$order=program_year');
     const rows = await res.json();
     if (!rows.length) { cellBody(cell).textContent = 'No data.'; return; }
-
-    const total = rows.reduce((s,r) => s + parseInt(r.count), 0);
+    const TARGET = 5200;
     let html = '';
+    let total = 0;
     rows.forEach(r => {
-      const pct = Math.round((parseInt(r.count)/total)*100);
-      const isCrape = r.common_name?.toLowerCase().includes('crape') || r.common_name?.toLowerCase().includes('crepe');
-      html += `<div class="analysis-row"><span class="analysis-key">${r.common_name || 'Unknown'}</span><span class="analysis-val ${isCrape ? 'bad' : ''}">${r.count} (${pct}%)</span></div>`;
+      const n = parseInt(r.n);
+      total += n;
+      const cls = n >= TARGET ? 'good' : n >= 3000 ? 'warn' : 'bad';
+      const diff = n - TARGET;
+      html += `<div class="analysis-row"><span class="analysis-key">${r.program_year||'?'}</span><span class="analysis-val ${cls}">${n.toLocaleString()} &nbsp;${diff>=0?'✓ +'+diff.toLocaleString():'↓ '+(Math.abs(diff)).toLocaleString()+' short'}</span></div>`;
     });
-
-    const crapeRow = rows.find(r => r.common_name?.toLowerCase().includes('crape') || r.common_name?.toLowerCase().includes('crepe'));
-    const crapeShare = crapeRow ? Math.round((parseInt(crapeRow.count)/total)*100) : 0;
-    const finding = crapeShare > 20
-      ? `Crepe/Crape Myrtle = ${crapeShare}% of significant trees. GIP flagged up to 50% monoculture citywide — minimal stormwater uptake, shade, or pollinator value.`
-      : `Top species distribution shown. GIP mandates diversity away from Crepe Myrtle monoculture.`;
-
+    const avg = Math.round(total / rows.length);
+    const avgCls = avg >= TARGET ? 'good' : avg >= 3000 ? 'warn' : 'bad';
+    html += `<div class="analysis-row" style="border-top:1px solid var(--card-border);margin-top:0.3rem"><span class="analysis-key">Avg/yr</span><span class="analysis-val ${avgCls}">${avg.toLocaleString()} vs ${TARGET.toLocaleString()} target</span></div>`;
+    const finding = avg < TARGET
+      ? `CRITICAL: Avg ${avg.toLocaleString()} trees/yr planted — ${(TARGET-avg).toLocaleString()} short of 5,200/yr GIP benchmark. City will not reach 30% canopy on schedule.`
+      : `Meeting benchmark: avg ${avg.toLocaleString()} trees/yr planted.`;
     cellBody(cell).innerHTML = html + `<div class="analysis-finding">${finding}</div>`;
-  } catch(e) {
-    cellBody(cell).textContent = `Error: ${e.message}`;
-  }
+  } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
 }
 
+// Public Meeting Notices (dszu-h9cf) — wetlands board + tree commission
+async function analysisMeetingNotices(container) {
+  const cell = makeCell('📋 Public Meeting Notices · Wetlands Board & Tree Commission');
+  container.appendChild(cell);
+  try {
+    const [wetlandsRes, treeRes] = await Promise.all([
+      fetch("/api/norfolk/resource/dszu-h9cf.json?$where=upper(meeting_body)%20like%20'%25WETLAND%25'&$order=meeting_date%20desc&$limit=5&$select=meeting_body,meeting_date,meeting_location,meeting_status"),
+      fetch("/api/norfolk/resource/dszu-h9cf.json?$where=upper(meeting_body)%20like%20'%25TREE%25'&$order=meeting_date%20desc&$limit=5&$select=meeting_body,meeting_date,meeting_location,meeting_status"),
+    ]);
+    const [wetlands, trees] = await Promise.all([wetlandsRes.json(), treeRes.json()]);
+
+    let html = '';
+    if (wetlands.length) {
+      html += `<div class="analysis-row"><span class="analysis-key" style="color:var(--paper)">Wetlands Board</span></div>`;
+      wetlands.forEach(r => {
+        const d = r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '?';
+        html += `<div class="analysis-row"><span class="analysis-key">${d}</span><span class="analysis-val">${r.meeting_status||'Scheduled'}</span></div>`;
+      });
+    } else {
+      html += `<div class="analysis-row"><span class="analysis-key">Wetlands Board</span><span class="analysis-val bad">No meetings found</span></div>`;
+    }
+    if (trees.length) {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Tree Commission</span></div>`;
+      trees.forEach(r => {
+        const d = r.meeting_date ? new Date(r.meeting_date).toLocaleDateString() : '?';
+        html += `<div class="analysis-row"><span class="analysis-key">${d}</span><span class="analysis-val">${r.meeting_status||'Scheduled'}</span></div>`;
+      });
+    } else {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key">Tree Commission</span><span class="analysis-val bad">No meetings found</span></div>`;
+    }
+    const noMeetings = !wetlands.length && !trees.length;
+    html += `<div class="analysis-finding">${noMeetings
+      ? 'No wetlands board or tree commission meetings found in public notices. This may indicate these bodies are not meeting or not reporting publicly — both are compliance concerns.'
+      : `${wetlands.length} wetlands + ${trees.length} tree commission notices found. Review minutes for GIP progress reporting.`}</div>`;
+    cellBody(cell).innerHTML = html;
+  } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
+}
+
+// Work Orders (qzfe-wj25) — tree and stormwater work
+async function analysisWorkOrders(container) {
+  const cell = makeCell('🔧 Work Orders · Tree & Stormwater Activity');
+  container.appendChild(cell);
+  try {
+    const [treeRes, stormRes] = await Promise.all([
+      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=upper(work_type)%20like%20'%25TREE%25'&$select=work_type,count(*)%20as%20n&$group=work_type&$order=n%20desc&$limit=8"),
+      fetch("/api/norfolk/resource/qzfe-wj25.json?$where=upper(work_type)%20like%20'%25STORM%25'%20OR%20upper(work_type)%20like%20'%25DRAIN%25'&$select=work_type,count(*)%20as%20n&$group=work_type&$order=n%20desc&$limit=6"),
+    ]);
+    const [treeOrders, stormOrders] = await Promise.all([treeRes.json(), stormRes.json()]);
+
+    let html = '';
+    if (treeOrders.length) {
+      html += `<div class="analysis-row"><span class="analysis-key" style="color:var(--paper)">Tree work orders</span></div>`;
+      treeOrders.forEach(r => {
+        html += `<div class="analysis-row"><span class="analysis-key">${r.work_type}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()}</span></div>`;
+      });
+    } else {
+      html += `<div class="analysis-row"><span class="analysis-key">Tree work orders</span><span class="analysis-val warn">No results — check field name</span></div>`;
+    }
+    if (stormOrders.length) {
+      html += `<div class="analysis-row" style="margin-top:0.5rem"><span class="analysis-key" style="color:var(--paper)">Stormwater work orders</span></div>`;
+      stormOrders.forEach(r => {
+        html += `<div class="analysis-row"><span class="analysis-key">${r.work_type}</span><span class="analysis-val">${parseInt(r.n).toLocaleString()}</span></div>`;
+      });
+    }
+    const removals = treeOrders.find(r => /remov/i.test(r.work_type||''));
+    const plantings = treeOrders.find(r => /plant|install/i.test(r.work_type||''));
+    const finding = (removals && plantings)
+      ? `Removals: ${parseInt(removals.n).toLocaleString()} vs plantings: ${parseInt(plantings.n).toLocaleString()}. GIP estimates 1,000 trees lost/yr — compare against removals to assess net canopy change.`
+      : `Work order breakdown shown. Cross-reference removals vs plantings to assess net canopy trajectory.`;
+    html += `<div class="analysis-finding">${finding}</div>`;
+    cellBody(cell).innerHTML = html;
+  } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
+}
+
+// Tide Sensors (mgyn-4sni)
 async function analysisTideSensors(container) {
   const cell = makeCell('🌊 Tide Sensors · Latest Readings (ft NAVD88)');
   container.appendChild(cell);
   try {
-    const res = await fetch(
-      '/api/norfolk/resource/mgyn-4sni.json?$order=localtime%20desc&$limit=1'
-    );
+    const res = await fetch('/api/norfolk/resource/mgyn-4sni.json?$order=localtime%20desc&$limit=1');
     const rows = await res.json();
     if (!rows.length) { cellBody(cell).textContent = 'No data.'; return; }
     const r = rows[0];
     const ts = r.localtime ? new Date(r.localtime).toLocaleString() : '?';
     let html = `<div class="analysis-row"><span class="analysis-key">Timestamp</span><span class="analysis-val">${ts}</span></div>`;
-    const sensors = [
-      ['Elizabeth R. Eastern Branch', r.elizabeth_river_eastern_branch],
-      ['Lafayette River', r.lafayette_river],
-      ['Mason Creek', r.mason_creek],
-    ];
-    sensors.forEach(([name, val]) => {
+    [['Elizabeth R. Eastern Branch', r.elizabeth_river_eastern_branch],
+     ['Lafayette River', r.lafayette_river],
+     ['Mason Creek', r.mason_creek]].forEach(([name, val]) => {
       if (val == null) return;
       const v = parseFloat(val).toFixed(2);
-      const cls = parseFloat(val) > 2 ? 'bad' : parseFloat(val) > 1 ? 'warn' : '';
+      const cls = parseFloat(val) > 2.5 ? 'bad' : parseFloat(val) > 1.5 ? 'warn' : '';
       html += `<div class="analysis-row"><span class="analysis-key">${name}</span><span class="analysis-val ${cls}">${v} ft</span></div>`;
     });
-    html += `<div class="analysis-finding">Live tidal data — elevated readings indicate flooding stress on wetland buffers. Mason Creek negative reading may indicate sensor or datum issue.</div>`;
+    html += `<div class="analysis-finding">Live tidal readings on waterways adjacent to GIP wetland restoration zones. Elevated readings = active flooding stress on shoreline buffers.</div>`;
     cellBody(cell).innerHTML = html;
-  } catch(e) {
-    cellBody(cell).textContent = `Error: ${e.message}`;
-  }
-}
-
-async function analysisWetlandPermits(container) {
-  const cell = makeCell('📋 Permits · Shoreline / Wetland Activity');
-  container.appendChild(cell);
-  try {
-    const keywords = ['shoreline','wetland','living shoreline','buffer','riparian'];
-    let found = [];
-    for (const kw of keywords) {
-      const res = await fetch(
-        `/api/norfolk/resource/bnrb-u445.json?$where=upper(permit_description)%20like%20upper('%25${encodeURIComponent(kw)}%25')&$limit=5&$select=permit_address,permit_description,inspection_type,inspection_status`
-      );
-      const rows = await res.json();
-      rows.forEach(r => { if (!found.find(f=>f.permit_address===r.permit_address)) found.push({...r, keyword: kw}); });
-    }
-
-    if (!found.length) {
-      cellBody(cell).innerHTML = `<div class="analysis-row"><span class="analysis-key">Result</span><span class="analysis-val bad">0 shoreline/wetland permits found in public dataset</span></div><div class="analysis-finding">No permits matching "shoreline", "wetland", "living shoreline", or "buffer" found. This is either a data gap or these permits are tracked separately — both are concerning for compliance monitoring.</div>`;
-      return;
-    }
-
-    let html = '';
-    found.slice(0,6).forEach(r => {
-      html += `<div class="analysis-row"><span class="analysis-key">${r.permit_address}</span><span class="analysis-val">${r.keyword} · ${r.inspection_status}</span></div>`;
-    });
-    html += `<div class="analysis-finding">${found.length} matching permits found. Review for GIP-aligned activity.</div>`;
-    cellBody(cell).innerHTML = html;
-  } catch(e) {
-    cellBody(cell).textContent = `Error: ${e.message}`;
-  }
+  } catch(e) { cellBody(cell).textContent = `Error: ${e.message}`; }
 }
 
 // =============================================
